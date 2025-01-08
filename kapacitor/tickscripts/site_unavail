@@ -1,0 +1,69 @@
+var db = 'cms_metrics'
+
+var rp = 'autogen'
+
+var measurement = 'http_response'
+
+var groupBy = []
+
+var whereFilter = lambda: isPresent("response_time")
+
+var name = 'Site Unavailable'
+
+var idVar = name
+
+var message = ''
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'site is unavailable'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var crit = 0
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |eval(lambda: "response_time")
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" == crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+
+trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')

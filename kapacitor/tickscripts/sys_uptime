@@ -1,0 +1,69 @@
+var db = 'cms_metrics'
+
+var rp = 'autogen'
+
+var measurement = 'system'
+
+var groupBy = []
+
+var whereFilter = lambda: isPresent("uptime")
+
+var name = 'Uptime less than 10min'
+
+var idVar = name
+
+var message = ''
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'System uptime less than 10m'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var crit = 600
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |eval(lambda: "uptime")
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" < crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+
+trigger
+    |eval(lambda: float("value"))
+        .as('value')
+        .keep()
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
