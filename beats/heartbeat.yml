@@ -1,6 +1,6 @@
 heartbeat.monitors:
   - type: http
-    urls: ["http://wordpress"]
+    urls: ["http://localhost"]
     schedule: "@every 10s"
     timeout: 5s
 
@@ -10,6 +10,6 @@ heartbeat.monitors:
     timeout: 5s
 
 output.elasticsearch:
-  hosts: ["http://elasticsearch:9200"]
+  hosts: ["http://localhost:9200"]
 setup.kibana:
-  host: "http://kibana:5601"
+  host: "http://localhost:5601"

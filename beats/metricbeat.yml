@@ -8,9 +8,9 @@ metricbeat.modules:
   - module: nginx
     metricsets: ["stubstatus"]
     period: 10s
-    hosts: ["http://nginx"]
+    hosts: ["http://localhost"]
 
 output.elasticsearch:
-  hosts: ["http://elasticsearch:9200"]
+  hosts: ["http://localhost:9200"]
 setup.kibana:
-  host: "http://kibana:5601"
+  host: "http://localhost:5601"
