@@ -1,0 +1,16 @@
+metricbeat.modules:
+  - module: system
+    metricsets:
+      - cpu
+      - memory
+      - network
+    period: 10s
+  - module: nginx
+    metricsets: ["stubstatus"]
+    period: 10s
+    hosts: ["http://nginx"]
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+setup.kibana:
+  host: "http://kibana:5601"

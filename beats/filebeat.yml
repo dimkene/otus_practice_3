@@ -1,0 +1,12 @@
+filebeat.inputs:
+  - type: log
+    paths:
+      - /var/log/nginx/*.log
+      - /var/log/mysql/*.log
+    fields:
+      service: nginx
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+setup.kibana:
+  host: "http://kibana:5601"
