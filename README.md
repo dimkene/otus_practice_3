@@ -1,1 +1,1 @@
-# otus_practis_3
+# otus_practice_3

@@ -1,0 +1,143 @@
+version: '3.7'
+
+services:
+  # WordPress
+  wordpress:
+    image: wordpress:php7.4-fpm
+    container_name: wordpress
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wp_user
+      WORDPRESS_DB_PASSWORD: wp_password
+    networks:
+      - monitoring
+
+  # Nginx
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./web/nginx.conf:/etc/nginx/nginx.conf
+      - ./web/wordpress:/var/www/html
+    depends_on:
+      - wordpress
+    networks:
+      - monitoring
+
+  # Mysql
+  db:
+    image: mysql:5.7
+    container_name: mysqldb
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp_user
+      MYSQL_PASSWORD: wp_password
+    networks:
+      - monitoring
+    volumes:
+      - mysql:/var/lib/mysql
+
+  telegraf:
+    image: telegraf:1.26-alpine
+    command: -config /etc/telegraf/telegraf.conf -config-directory /etc/telegraf/telegraf.d
+    restart: always
+    container_name: telegraf
+    hostname: telegraf
+    volumes:
+      - ./telegraf/config.conf:/etc/telegraf/telegraf.conf
+      - ./telegraf/conf.d:/etc/telegraf/telegraf.d
+    depends_on:
+      - influxdb
+    networks:
+      - monitoring
+
+  influxdb:
+    image: influxdb:1.8-alpine
+    restart: always
+    container_name: influxdb
+    hostname: influxdb
+    ports:
+      - 8086:8086
+    environment:
+      - INFLUXDB_DB=monitoring
+      - INFLUXDB_HTTP_AUTH_ENABLED=true
+      - INFLUXDB_ADMIN_USER=admin
+      - INFLUXDB_ADMIN_PASSWORD=admin
+    volumes:
+      - ./influxdb/config.conf:/etc/influxdb/influxdb.conf
+      - influxdb:/var/lib/influxdb
+    networks:
+      monitoring:
+        aliases:
+         - influxdb
+
+  chronograf:
+    image: chronograf:1.8-alpine
+    restart: always
+    container_name: chronograf
+    hostname: chronograf
+    ports:
+      - 8888:8888
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+      - KAPACITOR_URL=http://kapacitor:9092
+      - KAPACITOR_USERNAME=admin
+      - KAPACITOR_PASSWORD=admin
+      - INFLUXDB_USERNAME=admin
+      - INFLUXDB_PASSWORD=admin
+    volumes:
+      - chronograf:/var/lib/chronograf
+    depends_on:
+      - influxdb
+    networks:
+      monitoring:
+        aliases:
+         - chronograf
+
+  kapacitor:
+    image: kapacitor:1.7-alpine
+    restart: always
+    container_name: kapacitor
+    hostname: kapacitor
+    ports:
+      - 9092:9092
+    environment:
+      KAPACITOR_AS_ROOT: true
+      KAPACITOR_HOSTNAME: kapacitor
+      KAPACITOR_INFLUXDB_0_URLS_0: "http://influxdb:8086"
+      KAPACITOR_INFLUXDB_ENABLED: "true"
+      KAPACITOR_HTTP_AUTH_ENABLED: "true"
+      KAPACITOR_INFLUXDB_0_USERNAME: admin
+      KAPACITOR_INFLUXDB_0_PASSWORD: admin
+    volumes:
+      - ./kapacitor/config.conf:/etc/kapacitor/kapacitor.conf
+      - kapacitor:/var/lib/kapacitor
+    depends_on:
+      - influxdb
+    networks:
+      monitoring:
+        aliases:
+         - kapacitor
+
+networks:
+  monitoring:
+
+volumes:
+  grafanadb:
+    driver: local
+  mysql:
+    driver: local
+  vmstorage:
+    driver: local
+  promdb:
+    driver: local
+  kapacitor:
+    driver: local
+  chronograf:
+    driver: local
+  influxdb:
+    driver: local
