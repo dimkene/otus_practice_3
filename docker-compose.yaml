@@ -46,42 +46,58 @@ services:
       - mysql:/var/lib/mysql
       - mysql_logs:/var/log/mysql
 
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.2
-    container_name: elasticsearch
-    environment:
-      - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    volumes:
-      - ./elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-      - esdb:/usr/share/elasticsearch/data
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
     ports:
-      - "9200:9200"
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafanadb:/var/lib/grafana
     networks:
       - monitoring
 
+  # Logstash
   logstash:
     image: docker.elastic.co/logstash/logstash:8.16.2
     container_name: logstash
     volumes:
       - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
       - ./logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - beats_logs:/var/log/beats
+    user: "0:0"
     ports:
       - "5044:5044"
     networks:
       - monitoring
-    depends_on:
-      - elasticsearch
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.16.2
-    container_name: kibana
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+  # Loki
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
     ports:
-      - "5601:5601"
+      - "3100:3100"
+    user: "0:0"
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - lokidb:/tmp/loki
     networks:
       - monitoring
+
+  # Promtail
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - ./promtail/promtail-config.yaml:/etc/promtail/config.yml
+      - beats_logs:/var/log/beats
+    networks:
+      - monitoring
+    depends_on:
+      - loki
 
   filebeat:
     image: docker.elastic.co/beats/filebeat:8.16.2
@@ -122,11 +138,15 @@ networks:
 volumes:
   mysql:
     driver: local
+  grafanadb:
+    driver: local
+  lokidb:
+    driver: local
   mysql_logs:
     driver: local
   nginx_logs:
     driver: local
   php_logs:
     driver: local
-  esdb:
+  beats_logs:
     driver: local
