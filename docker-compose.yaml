@@ -46,75 +46,58 @@ services:
       - mysql:/var/lib/mysql
       - mysql_logs:/var/log/mysql
 
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.2
-    container_name: elasticsearch
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    container_name: opensearch
     environment:
+      - cluster.name=opensearch-cluster
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=Slozhniparol123
     volumes:
-      - ./elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
-      - esdb:/usr/share/elasticsearch/data
+      - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+      - opensearchdb:/usr/share/opensearch/data
     ports:
       - "9200:9200"
     networks:
       - monitoring
 
-  logstash:
-    image: docker.elastic.co/logstash/logstash:8.16.2
-    container_name: logstash
+  dataprepper:
+    image: opensearchproject/data-prepper:2.10.2
+    container_name: dataprepper
     volumes:
-      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
-      - ./logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - ./dataprepper/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
+      - ./dataprepper/data-prepper-config.yaml:/usr/share/dataprepper/data-prepper-config.yaml
     ports:
-      - "5044:5044"
+      - "2021:2021"
     networks:
       - monitoring
     depends_on:
-      - elasticsearch
+      - opensearch
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.16.2
-    container_name: kibana
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.18.0
+    container_name: opensearch-dashboards
     environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
     ports:
       - "5601:5601"
     networks:
       - monitoring
 
-  filebeat:
-    image: docker.elastic.co/beats/filebeat:8.16.2
-    container_name: filebeat
+  fluentbit:
+    image: fluent/fluent-bit:3.2.4-amd64
+    container_name: fluentbit
     volumes:
-      - ./beats/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - ./fluentbit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
       - nginx_logs:/var/log/nginx
       - mysql_logs:/var/log/mysql
       - php_logs:/var/log/php-fpm
     networks:
       - monitoring
     depends_on:
-      - logstash
-
-  metricbeat:
-    image: docker.elastic.co/beats/metricbeat:8.16.2
-    container_name: metricbeat
-    volumes:
-      - ./beats/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml
-    networks:
-      - monitoring
-    depends_on:
-      - logstash
-
-  heartbeat:
-    image: docker.elastic.co/beats/heartbeat:8.16.2
-    container_name: heartbeat
-    volumes:
-      - ./beats/heartbeat.yml:/usr/share/heartbeat/heartbeat.yml
-    networks:
-      - monitoring
-    depends_on:
-      - logstash
+      - dataprepper
 
 networks:
   monitoring:
@@ -128,5 +111,5 @@ volumes:
     driver: local
   php_logs:
     driver: local
-  esdb:
+  opensearchdb:
     driver: local

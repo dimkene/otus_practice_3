@@ -1,0 +1,3 @@
+log-pipeline:
+  workers: 2
+  delay: "5000"
