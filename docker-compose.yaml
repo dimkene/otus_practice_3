@@ -46,58 +46,89 @@ services:
       - mysql:/var/lib/mysql
       - mysql_logs:/var/log/mysql
 
+  graylog:
+    image: graylog/graylog:6.0
+    container_name: graylog
+    environment:
+      GRAYLOG_PASSWORD_SECRET: somepasswordpepper
+      GRAYLOG_ROOT_PASSWORD_SHA2: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+      GRAYLOG_HTTP_BIND_ADDRESS: "0.0.0.0:9000"
+      GRAYLOG_HTTP_EXTERNAL_URI: http://127.0.0.1:9000/
+      GRAYLOG_MONGODB_URI: mongodb://mongodb:27017/graylog
+      GRAYLOG_ELASTICSEARCH_HOSTS: "http://opensearch:9200"
+    volumes:
+      - graylogdb:/usr/share/graylog/data
+    entrypoint: /usr/bin/tini -- wait-for-it opensearch:9200 -- /docker-entrypoint.sh
+    ports:
+      - "9000:9000"
+      - "12201:12201/udp"
+    networks:
+      - monitoring
+    depends_on:
+      - mongodb
+      - opensearch
+
+  mongodb:
+    image: mongo:8.0
+    container_name: mongodb
+    volumes:
+      - mongodb:/data/db
+    networks:
+      - monitoring
+
   opensearch:
     image: opensearchproject/opensearch:2.18.0
     container_name: opensearch
     environment:
-      - cluster.name=opensearch-cluster
+      - cluster.name=graylog
       - discovery.type=single-node
+      - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "plugins.security.ssl.http.enabled=false"
+      - "plugins.security.disabled=true"
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=Slozhniparol123
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - 9200:9200/tcp
     volumes:
       - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
       - opensearchdb:/usr/share/opensearch/data
-    ports:
-      - "9200:9200"
     networks:
       - monitoring
 
-  dataprepper:
-    image: opensearchproject/data-prepper:2.10.2
-    container_name: dataprepper
-    volumes:
-      - ./dataprepper/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
-      - ./dataprepper/data-prepper-config.yaml:/usr/share/dataprepper/data-prepper-config.yaml
-    ports:
-      - "2021:2021"
-    networks:
-      - monitoring
-    depends_on:
-      - opensearch
-
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.18.0
-    container_name: opensearch-dashboards
+  graylog-sidecar:
+    image: digiapulssi/graylog-sidecar
+    container_name: graylog-sidecar
     environment:
-      - OPENSEARCH_HOSTS=http://opensearch:9200
-      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
-    ports:
-      - "5601:5601"
+      GS_SERVER_URL: "http://graylog:9000/api/"
+      GS_NODE_NAME: "cms-sidecar"
+      GS_SERVER_API_TOKEN: "1qbhcrfo5o149ncjui8tc57e6vga2d3jsqirfl4bh6570t3p1ppp"
+      GS_NODE_ID: "6033137e-d56b-47fc-9762-cd699c11a5a9"
+      GS_TLS_SKIP_VERIFY: true
+    volumes:
+      - nginx_logs:/var/log/nginx
+      - php_logs:/var/log/php-fpm
+      - mysql_logs:/var/log/mysql
     networks:
       - monitoring
 
-  fluentbit:
-    image: fluent/fluent-bit:3.2.4-amd64
-    container_name: fluentbit
+  # Logstash
+  logstash:
+    image: bitnami/logstash:8.17.1
+    container_name: logstash
     volumes:
-      - ./fluentbit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
-      - nginx_logs:/var/log/nginx
-      - mysql_logs:/var/log/mysql
-      - php_logs:/var/log/php-fpm
+      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
+    ports:
+      - "5044:5044"
     networks:
       - monitoring
-    depends_on:
-      - dataprepper
 
 networks:
   monitoring:
@@ -110,6 +141,10 @@ volumes:
   nginx_logs:
     driver: local
   php_logs:
+    driver: local
+  graylogdb:
+    driver: local
+  mongodb:
     driver: local
   opensearchdb:
     driver: local
